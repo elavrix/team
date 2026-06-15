@@ -261,6 +261,11 @@ function WorkspaceApp({ session, onLogout }) {
         <Sidebar
           activeView={view}
           projects={projects}
+          tasks={enrichedTasks}
+          notifications={notifications}
+          directMessages={directMessages}
+          currentMember={currentMember}
+          users={users}
           sidebarOpen={sidebarOpen}
           sidebarCollapsed={sidebarCollapsed}
           onClose={collapseSidebar}

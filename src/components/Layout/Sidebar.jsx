@@ -17,40 +17,14 @@ import {
 } from "lucide-react";
 import { useMemo, useState } from "react";
 
-const railItems = [
-  { key: "home", id: "dashboard", label: "Home", icon: Home, badge: 2, sidebarTab: "spaces" },
-  { key: "inbox", id: "inbox", label: "Inbox", icon: Inbox, badge: 2, sidebarTab: "unread" },
-  { key: "tasks", id: "list", label: "Tasks", icon: CheckCircle2, sidebarTab: "unread" },
-  { key: "board", id: "board", label: "Board", icon: Layers3, sidebarTab: "spaces" },
-  { key: "calendar", id: "calendar", label: "Calendar", icon: CalendarDays, sidebarTab: "unread" },
-  { key: "team", id: "team", label: "Team", icon: Users, sidebarTab: "dms" }
-];
-
-const homeItems = [
-  { id: "dashboard", label: "Dashboard", icon: BarChart3 },
-  { id: "inbox", label: "Inbox", icon: Inbox, badge: 2 },
-  { id: "list", label: "My Tasks", icon: CheckCircle2 },
-  { id: "calendar", label: "Today & Overdue", icon: CalendarDays, meta: "1" },
-  { id: "board", label: "Overview", icon: Layers3 },
-  { id: "team", label: "Team", icon: Users }
-];
-
-const unreadItems = [
-  { id: "inbox", label: "Inbox updates", icon: Inbox, badge: 2 },
-  { id: "list", label: "Unread tasks", icon: CheckCircle2, meta: "4" },
-  { id: "calendar", label: "Overdue alerts", icon: CalendarDays, meta: "1" }
-];
-
-const directMessages = [
-  { id: "u2", initials: "FA", name: "Faisal Ali", presence: "Available" },
-  { id: "u1", initials: "AS", name: "Amir Sharif", presence: "You" },
-  { id: "u3", initials: "SK", name: "Sarah Khan", presence: "Design" },
-  { id: "u4", initials: "AR", name: "Ali Raza", presence: "Engineering" }
-];
-
 export default function Sidebar({
   activeView,
-  projects,
+  projects = [],
+  tasks = [],
+  notifications = [],
+  directMessages = [],
+  currentMember,
+  users = [],
   sidebarOpen,
   sidebarCollapsed,
   onClose,
@@ -61,6 +35,39 @@ export default function Sidebar({
   onCreateProject
 }) {
   const [sidebarTab, setSidebarTab] = useState("all");
+  const today = new Date().toISOString().slice(0, 10);
+  const unreadInboxCount = notifications.filter((notice) => !notice.readAt).length;
+  const unreadTaskCount = tasks.filter((task) => task.assigneeId === currentMember?.id && task.status !== "Completed").length;
+  const overdueCount = tasks.filter(
+    (task) => task.assigneeId === currentMember?.id && task.status !== "Completed" && task.dueDate && task.dueDate < today
+  ).length;
+  const unreadMessageCount = directMessages.filter((message) => message.recipientId === currentMember?.id && !message.readAt).length;
+  const actionCount = unreadInboxCount + unreadTaskCount + overdueCount;
+
+  const railItems = [
+    { key: "home", id: "dashboard", label: "Home", icon: Home, badge: actionCount, sidebarTab: "spaces" },
+    { key: "inbox", id: "inbox", label: "Inbox", icon: Inbox, badge: unreadInboxCount, sidebarTab: "unread" },
+    { key: "tasks", id: "list", label: "Tasks", icon: CheckCircle2, badge: unreadTaskCount, sidebarTab: "unread" },
+    { key: "board", id: "board", label: "Board", icon: Layers3, sidebarTab: "spaces" },
+    { key: "calendar", id: "calendar", label: "Calendar", icon: CalendarDays, badge: overdueCount, sidebarTab: "unread" },
+    { key: "team", id: "team", label: "Team", icon: Users, badge: unreadMessageCount, sidebarTab: "dms" }
+  ];
+
+  const homeItems = [
+    { id: "dashboard", label: "Dashboard", icon: BarChart3 },
+    { id: "inbox", label: "Inbox", icon: Inbox, badge: unreadInboxCount },
+    { id: "list", label: "My Tasks", icon: CheckCircle2, meta: unreadTaskCount },
+    { id: "calendar", label: "Today & Overdue", icon: CalendarDays, meta: overdueCount },
+    { id: "board", label: "Overview", icon: Layers3 },
+    { id: "team", label: "Team", icon: Users, meta: unreadMessageCount }
+  ];
+
+  const unreadItems = [
+    { id: "inbox", label: "Inbox updates", icon: Inbox, badge: unreadInboxCount },
+    { id: "list", label: "Unread tasks", icon: CheckCircle2, meta: unreadTaskCount },
+    { id: "calendar", label: "Overdue alerts", icon: CalendarDays, meta: overdueCount }
+  ];
+
   const filteredPanel = useMemo(() => {
     if (sidebarTab === "unread") return "unread";
     if (sidebarTab === "dms") return "dms";
@@ -90,7 +97,7 @@ export default function Sidebar({
               >
                 <span className="rail-icon">
                   <Icon size={15} />
-                  {item.badge && <b>{item.badge}</b>}
+                  {item.badge > 0 && <b>{item.badge}</b>}
                 </span>
                 <small>{item.label}</small>
               </button>
@@ -140,8 +147,8 @@ export default function Sidebar({
               >
                 <Icon size={18} />
                 <span>{item.label}</span>
-                {item.badge && <b className="nav-badge">{item.badge}</b>}
-                {item.meta && <small>{item.meta}</small>}
+                {item.badge > 0 && <b className="nav-badge">{item.badge}</b>}
+                {item.meta > 0 && <small>{item.meta}</small>}
               </button>
             );
           })}
@@ -210,8 +217,8 @@ export default function Sidebar({
                 <button key={item.label} className="project-link" onClick={() => handleNav(item.id)}>
                   <Icon size={15} />
                   {item.label}
-                  {item.badge && <b className="nav-badge">{item.badge}</b>}
-                  {item.meta && <span className="project-muted">{item.meta}</span>}
+                  {item.badge > 0 && <b className="nav-badge">{item.badge}</b>}
+                  {item.meta > 0 && <span className="project-muted">{item.meta}</span>}
                 </button>
               );
             })}
@@ -222,11 +229,11 @@ export default function Sidebar({
             <div className="project-heading">
               <span className="section-label">Direct Messages</span>
             </div>
-            {directMessages.map((member) => (
+            {users.map((member) => (
               <button key={member.id} className="dm-link" onClick={() => handleNav("team")}>
-                <span className={`avatar mini ${member.initials === "AS" ? "online" : ""}`}>{member.initials}</span>
+                <span className={`avatar mini ${member.id === currentMember?.id ? "online" : ""}`}>{member.initials}</span>
                 {member.name}
-                <span className="project-muted">{member.presence}</span>
+                <span className="project-muted">{member.id === currentMember?.id ? "You" : member.role}</span>
               </button>
             ))}
             <button className="dm-compose" onClick={() => handleNav("team")}>
