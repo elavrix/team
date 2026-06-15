@@ -15,11 +15,12 @@ create table public.workspaces (
 create table public.members (
   id uuid primary key default gen_random_uuid(),
   workspace_id uuid not null references public.workspaces(id) on delete cascade,
-  user_id uuid not null references auth.users(id) on delete cascade,
+  user_id uuid references auth.users(id) on delete cascade,
   email text not null,
   name text not null,
   initials text not null,
   role public.member_role not null default 'member',
+  position text not null default 'Team Member',
   created_at timestamptz not null default now(),
   unique (workspace_id, user_id)
 );
@@ -148,12 +149,16 @@ using (public.is_workspace_member(workspace_id));
 
 create policy "users can insert own member profile"
 on public.members for insert
-with check (auth.uid() = user_id);
+with check (user_id is null or auth.uid() = user_id);
 
 create policy "workspace members can update members"
 on public.members for update
 using (public.is_workspace_member(workspace_id))
 with check (public.is_workspace_member(workspace_id));
+
+create policy "workspace members can delete members"
+on public.members for delete
+using (public.is_workspace_member(workspace_id));
 
 create policy "workspace members can read projects"
 on public.projects for select

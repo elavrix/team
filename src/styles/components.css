@@ -306,6 +306,14 @@
     border-right: 0;
     border-bottom: 1px solid var(--border);
   }
+
+  .team-invite-form {
+    grid-template-columns: 1fr;
+  }
+
+  .member-controls {
+    grid-template-columns: 1fr;
+  }
 }
 
 .stats-card {
@@ -1309,9 +1317,33 @@
 
 .team-grid {
   display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
+  grid-template-columns: repeat(auto-fit, minmax(290px, 1fr));
   gap: 14px;
   padding: 18px;
+}
+
+.team-invite-form {
+  display: grid;
+  grid-template-columns: 1.1fr 1.2fr 150px 190px auto;
+  gap: 10px;
+  align-items: end;
+  border-bottom: 1px solid var(--border);
+  padding: 14px 18px;
+}
+
+.team-invite-form label,
+.member-controls label {
+  display: grid;
+  gap: 6px;
+  color: var(--muted);
+  font-size: 12px;
+}
+
+.team-card-head {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  min-width: 0;
 }
 
 .team-card {
@@ -1329,9 +1361,21 @@
   margin: 0;
 }
 
-.member-stats {
+.team-card p {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.member-controls {
   display: grid;
   grid-template-columns: 1fr 1fr;
+  gap: 10px;
+}
+
+.member-stats {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
   gap: 10px;
 }
 
@@ -1347,6 +1391,21 @@
   display: block;
   color: var(--text);
   font-size: 20px;
+}
+
+.team-card-actions {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  color: var(--muted);
+  font-size: 12px;
+}
+
+.team-card-actions .icon-button:disabled,
+.member-controls select:disabled {
+  cursor: not-allowed;
+  opacity: 0.45;
 }
 
 .modal-backdrop {

@@ -18,6 +18,7 @@ function toUser(member) {
     email: member.email,
     name: member.name,
     role: member.role,
+    position: member.position || member.role,
     initials: member.initials
   };
 }
@@ -99,7 +100,8 @@ async function ensureWorkspace(user) {
       email: user.email,
       name,
       initials: initialsFor(name || user.email),
-      role: "owner"
+      role: "owner",
+      position: "Workspace Owner"
     })
     .select()
     .single();
@@ -199,6 +201,43 @@ export const supabaseStore = {
       .single();
     if (error) throw error;
     return toProject(data);
+  },
+  async createMember(workspaceId, payload) {
+    const name = payload.name.trim();
+    const email = payload.email.trim().toLowerCase();
+    const { data, error } = await supabase
+      .from("members")
+      .insert({
+        workspace_id: workspaceId,
+        user_id: payload.userId || null,
+        email,
+        name,
+        initials: initialsFor(name || email),
+        role: payload.role || "member",
+        position: payload.position || "Team Member"
+      })
+      .select()
+      .single();
+    if (error) throw error;
+    return toUser(data);
+  },
+  async updateMember(memberId, patch) {
+    const memberPatch = {};
+    if ("role" in patch) memberPatch.role = patch.role;
+    if ("position" in patch) memberPatch.position = patch.position;
+    if ("name" in patch) {
+      memberPatch.name = patch.name;
+      memberPatch.initials = initialsFor(patch.name);
+    }
+    const { data, error } = await supabase.from("members").update(memberPatch).eq("id", memberId).select().single();
+    if (error) throw error;
+    return toUser(data);
+  },
+  async deleteMember(memberId) {
+    const { error: assigneeError } = await supabase.from("task_assignees").delete().eq("member_id", memberId);
+    if (assigneeError) throw assigneeError;
+    const { error } = await supabase.from("members").delete().eq("id", memberId);
+    if (error) throw error;
   },
   async createTask(workspaceId, payload, actor) {
     const { data: task, error } = await supabase

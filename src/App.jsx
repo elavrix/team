@@ -213,6 +213,41 @@ function WorkspaceApp({ session, onLogout }) {
     }
   };
 
+  const createMember = async (payload) => {
+    try {
+      const member = await appStore.createMember(workspace.id, payload);
+      setUsers((current) => [...current, member]);
+      addActivity(`Invited ${payload.name}`);
+      await loadWorkspace();
+    } catch (error) {
+      setWorkspaceError(error.message || "Could not invite member.");
+    }
+  };
+
+  const updateMember = async (memberId, patch) => {
+    setUsers((current) => current.map((user) => (user.id === memberId ? { ...user, ...patch } : user)));
+    try {
+      await appStore.updateMember(memberId, patch);
+      await loadWorkspace();
+    } catch (error) {
+      setWorkspaceError(error.message || "Could not update member.");
+      await loadWorkspace();
+    }
+  };
+
+  const deleteMember = async (memberId) => {
+    if (memberId === currentMember?.id) return;
+    setUsers((current) => current.filter((user) => user.id !== memberId));
+    setTasks((current) => current.map((task) => (task.assigneeId === memberId ? { ...task, assigneeId: "" } : task)));
+    try {
+      await appStore.deleteMember(memberId);
+      await loadWorkspace();
+    } catch (error) {
+      setWorkspaceError(error.message || "Could not remove member.");
+      await loadWorkspace();
+    }
+  };
+
   const markNotificationRead = async (notificationId) => {
     setNotifications((current) =>
       current.map((notice) => (notice.id === notificationId ? { ...notice, readAt: new Date().toISOString() } : notice))
@@ -312,7 +347,14 @@ function WorkspaceApp({ session, onLogout }) {
           {view === "calendar" && <CalendarView tasks={enrichedTasks} onOpenTask={setSelectedTaskId} />}
           {view === "team" && (
             <>
-              <TeamPanel users={users} tasks={tasks} />
+              <TeamPanel
+                users={users}
+                tasks={tasks}
+                currentMember={currentMember}
+                onCreateMember={createMember}
+                onUpdateMember={updateMember}
+                onDeleteMember={deleteMember}
+              />
               <DirectMessages currentMember={currentMember} users={users} messages={directMessages} onSendMessage={sendDirectMessage} />
             </>
           )}

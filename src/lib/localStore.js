@@ -29,6 +29,15 @@ function write(key, value) {
   return value;
 }
 
+function initialsFor(nameOrEmail) {
+  return nameOrEmail
+    .split(/[.\s@_-]+/)
+    .filter(Boolean)
+    .slice(0, 2)
+    .map((part) => part[0]?.toUpperCase())
+    .join("");
+}
+
 function ensure() {
   if (!read(keys.workspace, null)) write(keys.workspace, { id: "local-workspace", name: "Flowdesk" });
   if (!read(keys.projects, null)) write(keys.projects, seedProjects);
@@ -76,6 +85,44 @@ export const localStore = {
     const project = { id: `p${Date.now()}`, name, color: colorPool[projects.length % colorPool.length] };
     write(keys.projects, [...projects, project]);
     return project;
+  },
+  async createMember(_workspaceId, payload) {
+    const users = read(keys.users, seedUsers);
+    const member = {
+      id: `u${Date.now()}`,
+      name: payload.name.trim(),
+      email: payload.email.trim().toLowerCase(),
+      role: payload.role || "member",
+      position: payload.position || payload.role || "Team Member",
+      initials: initialsFor(payload.name || payload.email)
+    };
+    write(keys.users, [...users, member]);
+    return member;
+  },
+  async updateMember(memberId, patch) {
+    const users = read(keys.users, seedUsers);
+    let updatedMember = null;
+    write(
+      keys.users,
+      users.map((user) => {
+        if (user.id !== memberId) return user;
+        updatedMember = { ...user, ...patch };
+        return updatedMember;
+      })
+    );
+    return updatedMember;
+  },
+  async deleteMember(memberId) {
+    const users = read(keys.users, seedUsers);
+    const tasks = read(keys.tasks, seedTasks);
+    write(
+      keys.tasks,
+      tasks.map((task) => (task.assigneeId === memberId ? { ...task, assigneeId: "" } : task))
+    );
+    write(
+      keys.users,
+      users.filter((user) => user.id !== memberId)
+    );
   },
   async createTask(_workspaceId, payload, actor) {
     const tasks = read(keys.tasks, seedTasks);
