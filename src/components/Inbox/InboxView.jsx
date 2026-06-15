@@ -1,130 +1,203 @@
-import { Activity, Check, CheckCheck, CircleDashed, Clock3, Filter, Inbox, Settings, UserRound, Waves } from "lucide-react";
+import { Activity, Check, CheckCheck, CircleDashed, Clock3, Filter, Inbox, Search, UserRound, Waves } from "lucide-react";
+import { useMemo, useState } from "react";
 
-const inboxRows = [
-  {
-    id: "i1",
-    title: "Presentation, Every Single details and feature of this Slate truck",
-    person: "MI",
-    attachment: "ussupplychaincorp.com__page_id=7553&preview=true.png",
-    date: "May 26",
-    done: false
-  },
-  {
-    id: "i2",
-    title: "John - Marksam Website WordPress - add chiense Language",
-    person: "FA",
-    message: "@Muhammad Adeel Iqbal please update the language of menu of Marksam website now. Just menu items right now",
-    date: "May 26",
-    done: true
-  },
-  {
-    id: "i3",
-    title: "YESMedical - Images for Medical products",
-    person: "Faisal Ali",
-    message: "assigned this task to you",
-    date: "May 23",
-    done: false
-  }
-];
+function formatDate(value) {
+  if (!value) return "No date";
+  return new Intl.DateTimeFormat("en", { month: "short", day: "numeric" }).format(new Date(value));
+}
 
-const earlierRows = [
-  {
-    id: "i4",
-    title: "Make Video narration to present this Slate and then enable review",
-    person: "Faisal Ali",
-    message: "assigned this task to you",
-    date: "May 18",
-    done: false
-  }
-];
-
-function InboxRow({ row, highlighted }) {
+function InboxRow({ row, onClear, onLater, onOpen }) {
   return (
-    <div className={`inbox-row ${highlighted ? "is-highlighted" : ""}`}>
-      <div className="inbox-row-title">
+    <div className={`inbox-row ${row.done ? "is-cleared" : ""}`}>
+      <button className="inbox-row-title" onClick={onOpen}>
         <span className={row.done ? "inbox-done" : "inbox-pending"}>{row.done ? <Check size={13} /> : <CircleDashed size={18} />}</span>
         <strong>{row.title}</strong>
-      </div>
-      <div className="inbox-row-message">
-        {row.person?.length <= 2 ? <span className="avatar inbox-avatar">{row.person}</span> : <UserRound size={17} />}
-        {row.attachment && <span className="attachment-chip">{row.attachment}</span>}
-        {row.message && (
-          <span>
-            {row.person?.length > 2 && <em>{row.person}</em>} <b>{row.message}</b>
-          </span>
-        )}
-      </div>
-      <time>{row.date}</time>
-      {highlighted && (
-        <div className="inbox-hover-actions">
-          <button aria-label="Snooze">
+      </button>
+      <button className="inbox-row-message" onClick={onOpen}>
+        {row.actorInitials ? <span className="avatar inbox-avatar">{row.actorInitials}</span> : <UserRound size={17} />}
+        <span>
+          {row.actorName && <em>{row.actorName}</em>} <b>{row.message}</b>
+        </span>
+      </button>
+      <time>{formatDate(row.date)}</time>
+      <div className="inbox-hover-actions">
+        {!row.done && (
+          <button aria-label="Move to later" onClick={onLater}>
             <Clock3 size={17} />
           </button>
-          <button aria-label="Clear">
+        )}
+        {!row.done && (
+          <button aria-label="Clear inbox item" onClick={onClear}>
             <Check size={17} />
             Clear
           </button>
-        </div>
-      )}
+        )}
+        {row.done && (
+          <button aria-label="Open cleared item" onClick={onOpen}>
+            Open
+          </button>
+        )}
+      </div>
     </div>
   );
 }
 
-export default function InboxView() {
+export default function InboxView({
+  currentMember,
+  notifications = [],
+  users = [],
+  tasks = [],
+  onOpenTask,
+  onRead,
+  onReadAll
+}) {
+  const [activeTab, setActiveTab] = useState("primary");
+  const [query, setQuery] = useState("");
+  const [unreadOnly, setUnreadOnly] = useState(false);
+  const [laterIds, setLaterIds] = useState([]);
+  const [clearedTaskIds, setClearedTaskIds] = useState([]);
+
+  const rows = useMemo(() => {
+    const notificationRows = notifications.map((notice) => {
+      const actor = users.find((user) => user.id === notice.actorId);
+      const task = tasks.find((item) => item.id === notice.taskId);
+      return {
+        id: `notice-${notice.id}`,
+        sourceId: notice.id,
+        taskId: notice.taskId,
+        type: notice.type || "notification",
+        title: task?.title || notice.body || notice.title,
+        message: notice.title,
+        actorName: actor?.name,
+        actorInitials: actor?.initials,
+        date: notice.createdAt,
+        done: Boolean(notice.readAt),
+        source: "notification"
+      };
+    });
+
+    const assignedTaskRows = tasks
+      .filter((task) => task.assigneeId === currentMember?.id)
+      .map((task) => ({
+        id: `task-${task.id}`,
+        sourceId: task.id,
+        taskId: task.id,
+        type: "assigned_task",
+        title: task.title,
+        message: `${task.status} task assigned to you`,
+        actorName: task.project?.name,
+        actorInitials: task.project?.name?.slice(0, 2).toUpperCase(),
+        date: task.dueDate,
+        done: task.status === "Completed" || clearedTaskIds.includes(task.id),
+        source: "task"
+      }));
+
+    const merged = [...notificationRows, ...assignedTaskRows];
+    const seen = new Set();
+    return merged
+      .filter((row) => {
+        const key = `${row.source}-${row.sourceId}`;
+        if (seen.has(key)) return false;
+        seen.add(key);
+        return true;
+      })
+      .sort((a, b) => new Date(b.date || 0) - new Date(a.date || 0));
+  }, [notifications, users, tasks, currentMember?.id, clearedTaskIds]);
+
+  const visibleRows = rows.filter((row) => {
+    const normalized = query.trim().toLowerCase();
+    const isLater = laterIds.includes(row.id);
+    const matchesQuery =
+      !normalized ||
+      row.title.toLowerCase().includes(normalized) ||
+      row.message.toLowerCase().includes(normalized) ||
+      row.actorName?.toLowerCase().includes(normalized);
+    const matchesUnread = !unreadOnly || !row.done;
+    const matchesTab =
+      (activeTab === "primary" && !row.done && !isLater) ||
+      (activeTab === "other" && row.type !== "task_assigned" && row.type !== "assigned_task" && !row.done && !isLater) ||
+      (activeTab === "later" && isLater) ||
+      (activeTab === "cleared" && row.done);
+    return matchesQuery && matchesUnread && matchesTab;
+  });
+
+  const unreadCount = rows.filter((row) => !row.done && !laterIds.includes(row.id)).length;
+  const laterCount = rows.filter((row) => laterIds.includes(row.id)).length;
+  const clearedCount = rows.filter((row) => row.done).length;
+
+  const clearRow = (row) => {
+    if (row.source === "notification") onRead(row.sourceId);
+    if (row.source === "task") setClearedTaskIds((current) => (current.includes(row.sourceId) ? current : [...current, row.sourceId]));
+    setLaterIds((current) => current.filter((id) => id !== row.id));
+  };
+
+  const clearVisible = () => {
+    const notificationIds = visibleRows.filter((row) => row.source === "notification" && !row.done).map((row) => row.sourceId);
+    const taskIds = visibleRows.filter((row) => row.source === "task" && !row.done).map((row) => row.sourceId);
+    if (notificationIds.length) onReadAll(notificationIds);
+    if (taskIds.length) setClearedTaskIds((current) => [...new Set([...current, ...taskIds])]);
+    setLaterIds((current) => current.filter((id) => !visibleRows.some((row) => row.id === id)));
+  };
+
   return (
     <section className="inbox-workspace">
       <div className="inbox-tabs">
-        <button className="active">
+        <button className={activeTab === "primary" ? "active" : ""} onClick={() => setActiveTab("primary")}>
           <Inbox size={19} />
           <span>
             Primary
-            <small>2 unread</small>
+            <small>{unreadCount} unread</small>
           </span>
         </button>
-        <button>
+        <button className={activeTab === "other" ? "active" : ""} onClick={() => setActiveTab("other")}>
           <Activity size={19} />
           Other
         </button>
-        <button>
+        <button className={activeTab === "later" ? "active" : ""} onClick={() => setActiveTab("later")}>
           <Clock3 size={19} />
-          Later
+          <span>
+            Later
+            <small>{laterCount} saved</small>
+          </span>
         </button>
-        <button>
+        <button className={activeTab === "cleared" ? "active" : ""} onClick={() => setActiveTab("cleared")}>
           <CheckCheck size={19} />
-          Cleared
+          <span>
+            Cleared
+            <small>{clearedCount} done</small>
+          </span>
         </button>
       </div>
 
       <div className="inbox-actions-bar">
-        <button className="view-chip">
-          <Filter size={16} />
-          Filter
-        </button>
+        <label className="inbox-search">
+          <Search size={16} />
+          <input value={query} onChange={(event) => setQuery(event.target.value)} placeholder="Search inbox" />
+        </label>
         <div>
-          <button className="search-square" aria-label="Inbox settings">
-            <Settings size={18} />
+          <button className={`view-chip ${unreadOnly ? "active" : ""}`} onClick={() => setUnreadOnly((current) => !current)}>
+            <Filter size={16} />
+            Unread only
           </button>
-          <button className="view-chip">
+          <button className="view-chip" onClick={clearVisible} disabled={!visibleRows.some((row) => !row.done)}>
             <Waves size={16} />
-            Clear all
+            Clear visible
           </button>
         </div>
       </div>
 
       <div className="inbox-section">
-        <h2>Last 7 days</h2>
+        <h2>{activeTab === "cleared" ? "Cleared items" : activeTab === "later" ? "Saved for later" : "Needs attention"}</h2>
         <div className="inbox-list-card">
-          {inboxRows.map((row) => (
-            <InboxRow key={row.id} row={row} />
-          ))}
-        </div>
-      </div>
-
-      <div className="inbox-section">
-        <h2>Earlier this month</h2>
-        <div className="inbox-list-card soft">
-          {earlierRows.map((row) => (
-            <InboxRow key={row.id} row={row} highlighted />
+          {visibleRows.length === 0 && <p className="empty-note">Nothing here right now.</p>}
+          {visibleRows.map((row) => (
+            <InboxRow
+              key={row.id}
+              row={row}
+              onOpen={() => row.taskId && onOpenTask(row.taskId)}
+              onClear={() => clearRow(row)}
+              onLater={() => setLaterIds((current) => (current.includes(row.id) ? current : [...current, row.id]))}
+            />
           ))}
         </div>
       </div>

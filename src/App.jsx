@@ -224,6 +224,19 @@ function WorkspaceApp({ session, onLogout }) {
     }
   };
 
+  const markNotificationsRead = async (notificationIds) => {
+    const idSet = new Set(notificationIds);
+    setNotifications((current) =>
+      current.map((notice) => (idSet.has(notice.id) ? { ...notice, readAt: new Date().toISOString() } : notice))
+    );
+    try {
+      await Promise.all(notificationIds.map((notificationId) => appStore.markNotificationRead(notificationId)));
+    } catch (error) {
+      setWorkspaceError(error.message || "Could not clear notifications.");
+      await loadWorkspace();
+    }
+  };
+
   const selectedTaskWithRelations = selectedTask
     ? {
         ...selectedTask,
@@ -267,7 +280,17 @@ function WorkspaceApp({ session, onLogout }) {
               <NotificationPanel notifications={notifications} users={users} tasks={tasks} onRead={markNotificationRead} />
             </>
           )}
-          {view === "inbox" && <InboxView />}
+          {view === "inbox" && (
+            <InboxView
+              currentMember={currentMember}
+              notifications={notifications}
+              users={users}
+              tasks={enrichedTasks}
+              onOpenTask={setSelectedTaskId}
+              onRead={markNotificationRead}
+              onReadAll={markNotificationsRead}
+            />
+          )}
           {view === "list" && (
             <TaskList
               tasks={filteredTasks}
